@@ -1,43 +1,42 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Typing Speed Test</title>
+    <title>反应力躲避球</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <main class="container">
-      <h1>Typing Speed Test</h1>
-      <p class="hint">Type the text below as accurately and quickly as possible.</p>
+    <div class="bg-grid"></div>
+    <main class="game-wrap">
+      <header class="panel top-panel">
+        <h1>⚡ 反应力躲避球</h1>
+        <p>键盘 WASD / 方向键，或手机摇杆拖动来躲避危险球。</p>
+      </header>
 
-      <section class="card">
-        <div id="targetText" class="target-text" aria-live="polite"></div>
-        <textarea
-          id="inputArea"
-          class="input-area"
-          rows="6"
-          placeholder="Start typing here..."
-          aria-label="Typing input"
-        ></textarea>
-
-        <div class="stats">
-          <div><span>Time Left:</span> <strong id="timeLeft">60s</strong></div>
-          <div><span>Accuracy:</span> <strong id="accuracy">100.00%</strong></div>
-          <div><span>WPM:</span> <strong id="wpm">0</strong></div>
-        </div>
-
-        <div class="actions">
-          <button id="restartBtn" type="button">Restart</button>
-        </div>
+      <section class="panel hud" aria-live="polite">
+        <div><span>分数</span><strong id="score">0</strong></div>
+        <div><span>最高分</span><strong id="bestScore">0</strong></div>
+        <div><span>等级</span><strong id="level">1</strong></div>
+        <div><span>状态</span><strong id="status">待开始</strong></div>
       </section>
 
-      <section id="result" class="result hidden" aria-live="polite">
-        <h2>Result</h2>
-        <p><strong>Final Accuracy:</strong> <span id="finalAccuracy"></span></p>
-        <p><strong>Final WPM:</strong> <span id="finalWpm"></span></p>
-        <p><strong>Correct Characters:</strong> <span id="correctChars"></span></p>
-        <button id="playAgainBtn" type="button">Play Again</button>
+      <section class="arena-shell panel">
+        <canvas id="gameCanvas" width="900" height="520" aria-label="躲避球游戏区域"></canvas>
+        <div id="flashMessage" class="flash-message"></div>
+      </section>
+
+      <section class="panel controls">
+        <button id="startBtn" type="button">开始</button>
+        <button id="pauseBtn" type="button">暂停</button>
+        <button id="restartBtn" type="button">重新开始</button>
+      </section>
+
+      <section class="touch-controls" aria-hidden="false">
+        <p>触控模式：按住摇杆移动</p>
+        <div id="joystickBase" class="joystick-base">
+          <div id="joystickKnob" class="joystick-knob"></div>
+        </div>
       </section>
     </main>
 
