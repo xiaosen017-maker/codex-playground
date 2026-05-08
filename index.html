@@ -3,68 +3,33 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Chiikawa Survival Arena</title>
+  <title>Chiikawa Dungeon Adventure</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="game-shell">
-    <div id="start-screen" class="overlay active">
-      <div class="panel">
-        <h1>🌟 Chiikawa 生存竞技场</h1>
-        <p>可爱外表，硬核生存！和 Chiikawa 一起坚持到最后。</p>
-        <ul>
-          <li>WASD / 方向键移动，空格主动挥击</li>
-          <li>手机端可用虚拟摇杆与攻击按钮</li>
-          <li>升级时从 3 个强化中选择 1 个</li>
-        </ul>
-        <button id="start-btn">开始冒险</button>
-      </div>
-    </div>
-
-    <div id="game-over-screen" class="overlay">
-      <div class="panel">
-        <h2>💥 冒险结束</h2>
-        <p id="final-stats"></p>
-        <button id="restart-btn">再来一局</button>
-      </div>
-    </div>
-
-    <div id="levelup-screen" class="overlay">
-      <div class="panel">
-        <h2>⬆️ 选择强化</h2>
-        <div id="upgrade-options"></div>
-      </div>
-    </div>
-
-    <div id="hud">
-      <div class="top-row">
-        <div class="hp-wrap">
-          <span>HP</span>
-          <div class="bar"><div id="hp-bar"></div></div>
-          <span id="hp-text"></span>
+  <div id="app">
+    <header id="hud">
+      <div class="card hp"><span>HP</span><div class="bar"><div id="hp-bar"></div></div><b id="hp-text"></b></div>
+      <div class="card xp"><span>EXP</span><div class="bar"><div id="xp-bar"></div></div><b id="xp-text"></b></div>
+      <div class="card stats"><span>Lv.<b id="lv">1</b></span><span>金币 <b id="gold">0</b></span><span>房间 <b id="room">1/8</b></span><span>击败 <b id="kills">0</b></span><span>时间 <b id="time">0.0s</b></span><span>最高击败 <b id="best-kills">0</b></span></div>
+    </header>
+    <div id="canvas-wrap">
+      <canvas id="game" width="1100" height="700"></canvas>
+      <canvas id="minimap" width="180" height="140"></canvas>
+      <div id="mobile-controls">
+        <div id="pad">
+          <button data-k="w">▲</button><button data-k="a">◀</button><button data-k="s">▼</button><button data-k="d">▶</button>
         </div>
-        <div class="meta">
-          <span>Lv.<b id="level">1</b></span>
-          <span>击败 <b id="kills">0</b></span>
-          <span>时间 <b id="time">0.0s</b></span>
-          <button id="pause-btn">暂停</button>
-        </div>
-      </div>
-      <div class="xp-wrap">
-        <div class="bar"><div id="xp-bar"></div></div>
-        <span id="xp-text">0 / 20</span>
+        <button id="atk-btn">✨</button>
       </div>
     </div>
-
-    <canvas id="game-canvas" width="960" height="540"></canvas>
-
-    <div id="mobile-controls">
-      <div id="joystick-zone">
-        <div id="joystick-knob"></div>
-      </div>
-      <button id="attack-btn">⚔️</button>
-    </div>
+    <div id="skill-icons" class="card"></div>
   </div>
+
+  <section id="start" class="overlay active"><div class="panel"><h1>Chiikawa Dungeon Adventure</h1><div class="hero-preview"><canvas id="preview" width="360" height="140"></canvas></div><p>WASD/方向键移动，J 或 空格攻击，P 暂停。清空房间后开门，探索 8 个房间并击败 Boss！</p><button id="start-btn">开始游戏</button></div></section>
+  <section id="pause" class="overlay"><div class="panel"><h2>已暂停</h2><button id="resume-btn">继续</button></div></section>
+  <section id="levelup" class="overlay"><div class="panel"><h2>升级！选择一项强化</h2><div id="upgrade-list"></div></div></section>
+  <section id="end" class="overlay"><div class="panel"><h2 id="end-title"></h2><p id="end-text"></p><button id="restart-btn">重新开始</button></div></section>
 
   <script src="script.js"></script>
 </body>
