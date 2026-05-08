@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Typing Speed Test</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="container">
+      <h1>Typing Speed Test</h1>
+      <p class="hint">Type the text below as accurately and quickly as possible.</p>
+
+      <section class="card">
+        <div id="targetText" class="target-text" aria-live="polite"></div>
+        <textarea
+          id="inputArea"
+          class="input-area"
+          rows="6"
+          placeholder="Start typing here..."
+          aria-label="Typing input"
+        ></textarea>
+
+        <div class="stats">
+          <div><span>Time Left:</span> <strong id="timeLeft">60s</strong></div>
+          <div><span>Accuracy:</span> <strong id="accuracy">100.00%</strong></div>
+          <div><span>WPM:</span> <strong id="wpm">0</strong></div>
+        </div>
+
+        <div class="actions">
+          <button id="restartBtn" type="button">Restart</button>
+        </div>
+      </section>
+
+      <section id="result" class="result hidden" aria-live="polite">
+        <h2>Result</h2>
+        <p><strong>Final Accuracy:</strong> <span id="finalAccuracy"></span></p>
+        <p><strong>Final WPM:</strong> <span id="finalWpm"></span></p>
+        <p><strong>Correct Characters:</strong> <span id="correctChars"></span></p>
+        <button id="playAgainBtn" type="button">Play Again</button>
+      </section>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>
