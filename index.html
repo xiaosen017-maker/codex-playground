@@ -1,45 +1,71 @@
 <!doctype html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>反应力躲避球</title>
-    <link rel="stylesheet" href="style.css" />
-  </head>
-  <body>
-    <div class="bg-grid"></div>
-    <main class="game-wrap">
-      <header class="panel top-panel">
-        <h1>⚡ 反应力躲避球</h1>
-        <p>键盘 WASD / 方向键，或手机摇杆拖动来躲避危险球。</p>
-      </header>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Chiikawa Survival Arena</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="game-shell">
+    <div id="start-screen" class="overlay active">
+      <div class="panel">
+        <h1>🌟 Chiikawa 生存竞技场</h1>
+        <p>可爱外表，硬核生存！和 Chiikawa 一起坚持到最后。</p>
+        <ul>
+          <li>WASD / 方向键移动，空格主动挥击</li>
+          <li>手机端可用虚拟摇杆与攻击按钮</li>
+          <li>升级时从 3 个强化中选择 1 个</li>
+        </ul>
+        <button id="start-btn">开始冒险</button>
+      </div>
+    </div>
 
-      <section class="panel hud" aria-live="polite">
-        <div><span>分数</span><strong id="score">0</strong></div>
-        <div><span>最高分</span><strong id="bestScore">0</strong></div>
-        <div><span>等级</span><strong id="level">1</strong></div>
-        <div><span>状态</span><strong id="status">待开始</strong></div>
-      </section>
+    <div id="game-over-screen" class="overlay">
+      <div class="panel">
+        <h2>💥 冒险结束</h2>
+        <p id="final-stats"></p>
+        <button id="restart-btn">再来一局</button>
+      </div>
+    </div>
 
-      <section class="arena-shell panel">
-        <canvas id="gameCanvas" width="900" height="520" aria-label="躲避球游戏区域"></canvas>
-        <div id="flashMessage" class="flash-message"></div>
-      </section>
+    <div id="levelup-screen" class="overlay">
+      <div class="panel">
+        <h2>⬆️ 选择强化</h2>
+        <div id="upgrade-options"></div>
+      </div>
+    </div>
 
-      <section class="panel controls">
-        <button id="startBtn" type="button">开始</button>
-        <button id="pauseBtn" type="button">暂停</button>
-        <button id="restartBtn" type="button">重新开始</button>
-      </section>
-
-      <section class="touch-controls" aria-hidden="false">
-        <p>触控模式：按住摇杆移动</p>
-        <div id="joystickBase" class="joystick-base">
-          <div id="joystickKnob" class="joystick-knob"></div>
+    <div id="hud">
+      <div class="top-row">
+        <div class="hp-wrap">
+          <span>HP</span>
+          <div class="bar"><div id="hp-bar"></div></div>
+          <span id="hp-text"></span>
         </div>
-      </section>
-    </main>
+        <div class="meta">
+          <span>Lv.<b id="level">1</b></span>
+          <span>击败 <b id="kills">0</b></span>
+          <span>时间 <b id="time">0.0s</b></span>
+          <button id="pause-btn">暂停</button>
+        </div>
+      </div>
+      <div class="xp-wrap">
+        <div class="bar"><div id="xp-bar"></div></div>
+        <span id="xp-text">0 / 20</span>
+      </div>
+    </div>
 
-    <script src="script.js"></script>
-  </body>
+    <canvas id="game-canvas" width="960" height="540"></canvas>
+
+    <div id="mobile-controls">
+      <div id="joystick-zone">
+        <div id="joystick-knob"></div>
+      </div>
+      <button id="attack-btn">⚔️</button>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
 </html>
