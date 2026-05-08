@@ -1,315 +1,138 @@
-const canvas = document.getElementById('gameCanvas');
+const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
+const startScreen = document.getElementById('start-screen');
+const overScreen = document.getElementById('game-over-screen');
+const levelupScreen = document.getElementById('levelup-screen');
+const upgradeBox = document.getElementById('upgrade-options');
 
-const scoreEl = document.getElementById('score');
-const bestScoreEl = document.getElementById('bestScore');
-const levelEl = document.getElementById('level');
-const statusEl = document.getElementById('status');
-const flashMessageEl = document.getElementById('flashMessage');
+const ui = {
+  hpBar: document.getElementById('hp-bar'), hpText: document.getElementById('hp-text'), xpBar: document.getElementById('xp-bar'),
+  xpText: document.getElementById('xp-text'), level: document.getElementById('level'), kills: document.getElementById('kills'), time: document.getElementById('time')
+};
 
-const startBtn = document.getElementById('startBtn');
-const pauseBtn = document.getElementById('pauseBtn');
-const restartBtn = document.getElementById('restartBtn');
+const W = canvas.width, H = canvas.height;
+const keys = new Set();
+const drops = [], enemies = [], bullets = [], effects = [], hachiShots = [], enemyShots = [];
+let running = false, paused = false, leveling = false;
+let last = 0, enemyTimer = 0, scoreTime = 0, killCount = 0;
 
-const joystickBase = document.getElementById('joystickBase');
-const joystickKnob = document.getElementById('joystickKnob');
+const player = {
+  x: W/2, y: H/2, r: 18, speed: 180, hp: 100, maxHp: 100, xp: 0, lv: 1, xpNeed: 20,
+  atk: 16, range: 120, atkCd: 0.6, atkTimer: 0, proj: 1, crit: 0.08, flash: 0, dashCd: 8, dashTimer: 2, hasHachi: false
+};
 
-const PLAYER_SIZE = 28;
-const BASE_ENEMY_SPEED = 1.8;
-const BEST_SCORE_KEY = 'dodgeGameBestScore';
-
-let gameState = 'ready';
-let player;
-let enemies;
-let powerups;
-let keys = {};
-let touchInput = { x: 0, y: 0 };
-let score = 0;
-let bestScore = Number(localStorage.getItem(BEST_SCORE_KEY) || 0);
-let level = 1;
-let baseEnemyCount = 3;
-let speedScale = 1;
-let lastTime = 0;
-let spawnAccumulator = 0;
-let powerupAccumulator = 0;
-let levelAccumulator = 0;
-let effectTimer = 0;
-let activeEffect = null;
-
-bestScoreEl.textContent = String(bestScore);
-
-function resetGame() {
-  player = {
-    x: canvas.width / 2 - PLAYER_SIZE / 2,
-    y: canvas.height / 2 - PLAYER_SIZE / 2,
-    size: PLAYER_SIZE,
-    speed: 4.2,
-    invincible: false,
-  };
-
-  enemies = [];
-  powerups = [];
-  score = 0;
-  level = 1;
-  baseEnemyCount = 3;
-  speedScale = 1;
-  spawnAccumulator = 0;
-  powerupAccumulator = 0;
-  levelAccumulator = 0;
-  effectTimer = 0;
-  activeEffect = null;
-
-  for (let i = 0; i < baseEnemyCount; i += 1) spawnEnemy();
-  updateHUD();
-}
+const upgrades = [
+  ['攻击速度+', ()=> player.atkCd=Math.max(0.18,player.atkCd*0.86)],
+  ['攻击范围+', ()=> player.range+=20],
+  ['子弹数量+', ()=> player.proj+=1],
+  ['移动速度+', ()=> player.speed+=20],
+  ['最大生命+', ()=> {player.maxHp+=20; player.hp+=20;}],
+  ['回复生命', ()=> player.hp=Math.min(player.maxHp, player.hp+45)],
+  ['暴击率+', ()=> player.crit=Math.min(0.55, player.crit+0.08)],
+  ['召唤 Hachiware', ()=> player.hasHachi=true],
+  ['Usagi 冲刺', ()=> player.dashCd=Math.max(4.5, player.dashCd-1.2)]
+];
 
 function spawnEnemy() {
-  const side = Math.floor(Math.random() * 4);
-  let x = 0;
-  let y = 0;
-
-  if (side === 0) { x = Math.random() * canvas.width; y = -20; }
-  if (side === 1) { x = canvas.width + 20; y = Math.random() * canvas.height; }
-  if (side === 2) { x = Math.random() * canvas.width; y = canvas.height + 20; }
-  if (side === 3) { x = -20; y = Math.random() * canvas.height; }
-
-  const angle = Math.atan2(player.y - y, player.x - x) + (Math.random() - 0.5) * 0.8;
-  const speed = (BASE_ENEMY_SPEED + Math.random() * 1.4) * speedScale;
-
-  enemies.push({ x, y, r: 10 + Math.random() * 8, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed });
+  const edge = Math.random()*4|0;
+  const p = [ [Math.random()*W,-20], [W+20,Math.random()*H], [Math.random()*W,H+20], [-20,Math.random()*H] ][edge];
+  const t = Math.random();
+  let e = {x:p[0],y:p[1],dead:false,hit:0};
+  if (t<0.5) Object.assign(e,{type:'normal',hp:20+scoreTime*0.3,speed:62+scoreTime*0.45,r:14,color:'#ffafc9'});
+  else if (t<0.82) Object.assign(e,{type:'swift',hp:12+scoreTime*0.2,speed:125+scoreTime*0.55,r:11,color:'#ffd56f'});
+  else Object.assign(e,{type:'tank',hp:50+scoreTime*0.6,speed:45+scoreTime*0.3,r:18,color:'#b69bff',shoot:2.2,timer:1});
+  enemies.push(e);
 }
 
-function spawnPowerup() {
-  powerups.push({
-    x: 30 + Math.random() * (canvas.width - 60),
-    y: 30 + Math.random() * (canvas.height - 60),
-    r: 12,
-    type: Math.random() > 0.5 ? 'invincible' : 'slow',
-    ttl: 8,
+function autoAttack() {
+  if (player.atkTimer>0 || enemies.length===0) return;
+  const target = enemies.reduce((a,b)=> distP(b,player)<distP(a,player)?b:a, enemies[0]);
+  for (let i=0;i<player.proj;i++) {
+    const ang = Math.atan2(target.y-player.y,target.x-player.x)+(i-(player.proj-1)/2)*0.18;
+    bullets.push({x:player.x,y:player.y,vx:Math.cos(ang)*340,vy:Math.sin(ang)*340,life:0.9,aoe: i===0 ? 28:0});
+  }
+  player.atkTimer = player.atkCd;
+}
+function distP(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
+function hitEnemy(e,dmg){
+  const crit = Math.random()<player.crit; e.hp -= crit?dmg*1.8:dmg; e.hit=0.12;
+  if (e.hp<=0 && !e.dead){ e.dead=true; killCount++; drops.push({x:e.x,y:e.y,v:8}); effects.push({x:e.x,y:e.y,t:0.25}); }
+}
+
+function chooseUpgrades() {
+  leveling = true; paused = true; levelupScreen.classList.add('active'); upgradeBox.innerHTML='';
+  [...upgrades].sort(()=>Math.random()-0.5).slice(0,3).forEach(([name,fn])=>{
+    const b=document.createElement('button'); b.className='upgrade-btn'; b.textContent=name;
+    b.onclick=()=>{ fn(); levelupScreen.classList.remove('active'); paused=false; leveling=false;}; upgradeBox.appendChild(b);
   });
 }
 
-function updateHUD() {
-  scoreEl.textContent = String(Math.floor(score));
-  bestScoreEl.textContent = String(bestScore);
-  levelEl.textContent = String(level);
-  statusEl.textContent =
-    gameState === 'running' ? (activeEffect ? `进行中（${activeEffect}）` : '进行中') : gameState === 'paused' ? '暂停中' : gameState === 'over' ? '已结束' : '待开始';
-}
+function damagePlayer(v){ player.hp-=v; player.flash=0.18; if(player.hp<=0){ running=false; overScreen.classList.add('active'); document.getElementById('final-stats').textContent=`生存 ${scoreTime.toFixed(1)} 秒 · 击败 ${killCount}`; }}
 
-function showFlash(msg) {
-  flashMessageEl.textContent = msg;
-  flashMessageEl.classList.add('show');
-  setTimeout(() => flashMessageEl.classList.remove('show'), 900);
-}
+function update(dt){
+  if (!running || paused) return;
+  scoreTime += dt; enemyTimer += dt; player.atkTimer -= dt; player.flash -= dt; player.dashTimer -= dt;
+  const spawnGap = Math.max(0.18, 1.2-scoreTime*0.012);
+  while(enemyTimer>spawnGap){ enemyTimer-=spawnGap; spawnEnemy(); }
 
-function startGame() {
-  if (gameState === 'running') return;
-  if (gameState === 'ready' || gameState === 'over') resetGame();
-  gameState = 'running';
-  updateHUD();
-}
+  let dx=(keys.has('d')||keys.has('arrowright'))-(keys.has('a')||keys.has('arrowleft'));
+  let dy=(keys.has('s')||keys.has('arrowdown'))-(keys.has('w')||keys.has('arrowup'));
+  const l=Math.hypot(dx,dy)||1; player.x += dx/l*player.speed*dt; player.y += dy/l*player.speed*dt;
+  player.x=Math.max(16,Math.min(W-16,player.x)); player.y=Math.max(16,Math.min(H-16,player.y));
 
-function pauseGame() {
-  if (gameState === 'running') gameState = 'paused';
-  else if (gameState === 'paused') gameState = 'running';
-  updateHUD();
-}
-
-function endGame() {
-  gameState = 'over';
-  if (score > bestScore) {
-    bestScore = Math.floor(score);
-    localStorage.setItem(BEST_SCORE_KEY, String(bestScore));
-    showFlash('🎉 新纪录！');
+  if (player.hasHachi && Math.random()<dt*2) {
+    const t=enemies[0]; if(t) hachiShots.push({x:player.x+24,y:player.y-24,target:t,life:0.7});
   }
-  updateHUD();
-}
+  if (player.dashTimer<=0){ const t=enemies[0]; if(t){ t.hp-=24; effects.push({x:t.x,y:t.y,t:0.2,c:'#ffe47d'});} player.dashTimer=player.dashCd; }
 
-function getInputVector() {
-  let dx = 0;
-  let dy = 0;
-  if (keys.ArrowUp || keys.KeyW) dy -= 1;
-  if (keys.ArrowDown || keys.KeyS) dy += 1;
-  if (keys.ArrowLeft || keys.KeyA) dx -= 1;
-  if (keys.ArrowRight || keys.KeyD) dx += 1;
+  autoAttack();
+  bullets.forEach(b=>{b.x+=b.vx*dt;b.y+=b.vy*dt;b.life-=dt; enemies.forEach(e=>{ if(!e.dead&&distP(b,e)<e.r+5){ hitEnemy(e,player.atk); if(b.aoe>0) enemies.forEach(o=>!o.dead&&distP(o,e)<b.aoe&&hitEnemy(o,player.atk*0.45)); b.life=0; }});});
+  hachiShots.forEach(s=>{ s.life-=dt; if(s.target&&!s.target.dead){ const a=Math.atan2(s.target.y-s.y,s.target.x-s.x); s.x+=Math.cos(a)*320*dt; s.y+=Math.sin(a)*320*dt; if(distP(s,s.target)<14){ hitEnemy(s.target,12); s.life=0; }} });
 
-  dx += touchInput.x;
-  dy += touchInput.y;
-
-  const len = Math.hypot(dx, dy) || 1;
-  return { x: dx / len, y: dy / len };
-}
-
-function collideCircleRect(circle, rect) {
-  const nearestX = Math.max(rect.x, Math.min(circle.x, rect.x + rect.size));
-  const nearestY = Math.max(rect.y, Math.min(circle.y, rect.y + rect.size));
-  const dx = circle.x - nearestX;
-  const dy = circle.y - nearestY;
-  return dx * dx + dy * dy < circle.r * circle.r;
-}
-
-function update(dt) {
-  if (gameState !== 'running') return;
-
-  score += dt * 10;
-  spawnAccumulator += dt;
-  powerupAccumulator += dt;
-  levelAccumulator += dt;
-
-  if (spawnAccumulator > 1.6) {
-    spawnAccumulator = 0;
-    spawnEnemy();
-  }
-
-  if (powerupAccumulator > 7 + Math.random() * 2) {
-    powerupAccumulator = 0;
-    spawnPowerup();
-  }
-
-  if (levelAccumulator > 14) {
-    levelAccumulator = 0;
-    level += 1;
-    speedScale += 0.18;
-    spawnEnemy();
-    showFlash(`⚠️ 难度提升 Lv.${level}`);
-  }
-
-  if (effectTimer > 0) {
-    effectTimer -= dt;
-    if (effectTimer <= 0) {
-      player.invincible = false;
-      activeEffect = null;
-      speedScale = 1 + (level - 1) * 0.18;
-    }
-  }
-
-  const input = getInputVector();
-  player.x += input.x * player.speed * 120 * dt;
-  player.y += input.y * player.speed * 120 * dt;
-  player.x = Math.max(0, Math.min(canvas.width - player.size, player.x));
-  player.y = Math.max(0, Math.min(canvas.height - player.size, player.y));
-
-  enemies.forEach((e) => {
-    e.x += e.vx;
-    e.y += e.vy;
-    e.vx *= 0.998;
-    e.vy *= 0.998;
-
-    const angle = Math.atan2(player.y - e.y, player.x - e.x);
-    e.vx += Math.cos(angle) * 0.02 * speedScale;
-    e.vy += Math.sin(angle) * 0.02 * speedScale;
-
-    if (collideCircleRect(e, player) && !player.invincible) endGame();
+  enemies.forEach(e=>{
+    const a=Math.atan2(player.y-e.y,player.x-e.x); e.x+=Math.cos(a)*e.speed*dt; e.y+=Math.sin(a)*e.speed*dt; e.hit-=dt;
+    if(e.type==='tank'){ e.timer-=dt; if(e.timer<=0){ e.timer=e.shoot; enemyShots.push({x:e.x,y:e.y,vx:Math.cos(a)*170,vy:Math.sin(a)*170,life:4}); }}
+    if(distP(e,player)<e.r+player.r-2){ damagePlayer((e.type==='tank'?16:8)*dt); }
   });
+  enemyShots.forEach(s=>{ s.x+=s.vx*dt; s.y+=s.vy*dt; s.life-=dt; if(distP(s,player)<14) {damagePlayer(8); s.life=0;} });
 
-  powerups = powerups.filter((p) => {
-    p.ttl -= dt;
-    if (p.ttl <= 0) return false;
+  drops.forEach(d=>{ if(distP(d,player)<18){ player.xp+=d.v; d.v=0; } });
+  if(player.xp>=player.xpNeed){ player.xp-=player.xpNeed; player.lv++; player.xpNeed=Math.round(player.xpNeed*1.35); chooseUpgrades(); }
 
-    if (collideCircleRect(p, player)) {
-      if (p.type === 'invincible') {
-        player.invincible = true;
-        activeEffect = '无敌';
-        effectTimer = 4.5;
-        showFlash('🛡️ 无敌启动');
-      } else {
-        activeEffect = '敌人减速';
-        effectTimer = 4.5;
-        speedScale *= 0.58;
-        enemies.forEach((e) => { e.vx *= 0.58; e.vy *= 0.58; });
-        showFlash('🐢 敌人减速');
-      }
-      return false;
-    }
-
-    return true;
-  });
-
-  updateHUD();
+  [bullets,hachiShots,enemyShots,drops,effects,enemies].forEach(arr=>{ for(let i=arr.length-1;i>=0;i--) if(arr[i].life!==undefined?arr[i].life<=0:arr[i].dead||arr[i].v===0) arr.splice(i,1); });
 }
 
-function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+function drawChar(x,y,color,face='•ᴗ•'){ ctx.fillStyle=color; ctx.beginPath(); ctx.arc(x,y,18,0,7); ctx.fill(); ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(x-8,y-10,6,0,7); ctx.arc(x+8,y-10,6,0,7); ctx.fill(); ctx.fillStyle='#333'; ctx.font='11px sans-serif'; ctx.fillText(face,x-12,y+4); }
 
-  const glow = 8 + Math.sin(Date.now() * 0.01) * 4;
-  ctx.save();
-  ctx.shadowBlur = glow;
-  ctx.shadowColor = '#50d3ff';
-  ctx.fillStyle = player.invincible ? '#7dffac' : '#59c4ff';
-  ctx.fillRect(player.x, player.y, player.size, player.size);
-  ctx.restore();
-
-  enemies.forEach((e) => {
-    ctx.beginPath();
-    ctx.fillStyle = '#ff4f64';
-    ctx.shadowBlur = 10;
-    ctx.shadowColor = '#ff4f64';
-    ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2);
-    ctx.fill();
-  });
-
-  powerups.forEach((p) => {
-    ctx.beginPath();
-    ctx.fillStyle = p.type === 'invincible' ? '#51ffa8' : '#8fff4d';
-    ctx.shadowBlur = 12;
-    ctx.shadowColor = '#7fff8d';
-    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-    ctx.fill();
-  });
+function render(){
+  ctx.clearRect(0,0,W,H);
+  for(let i=0;i<28;i++){ ctx.fillStyle=i%2?'#e4ecff':'#dce7ff'; ctx.fillRect((i*53)%W,((i*29)+40)%H,24,14); }
+  drops.forEach(d=>{ctx.fillStyle='#7cc8ff';ctx.beginPath();ctx.arc(d.x,d.y,6,0,7);ctx.fill();});
+  enemies.forEach(e=>drawChar(e.x,e.y,e.hit>0?'#ff6c8f':e.color,e.type==='tank'?'ಠ_ಠ':'•.•'));
+  bullets.forEach(b=>{ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(b.x,b.y,4,0,7);ctx.fill();});
+  hachiShots.forEach(s=>{ctx.fillStyle='#8ad5ff';ctx.fillRect(s.x-3,s.y-3,6,6);});
+  enemyShots.forEach(s=>{ctx.fillStyle='#a25bff';ctx.beginPath();ctx.arc(s.x,s.y,5,0,7);ctx.fill();});
+  effects.forEach(e=>{ctx.strokeStyle=e.c||'#ffd7e8';ctx.globalAlpha=Math.max(0,e.t*4);ctx.beginPath();ctx.arc(e.x,e.y,30*(1-e.t*3),0,7);ctx.stroke();ctx.globalAlpha=1; e.t-=0.016;});
+  if(player.flash>0) ctx.globalAlpha=0.45; drawChar(player.x,player.y,'#fff5f8','•ω•'); ctx.globalAlpha=1;
 }
-
-function loop(ts) {
-  const dt = Math.min((ts - lastTime) / 1000, 0.033);
-  lastTime = ts;
-  update(dt);
-  draw();
-  requestAnimationFrame(loop);
+function uiSync(){
+  ui.hpBar.style.width=`${Math.max(0,player.hp/player.maxHp*100)}%`; ui.hpText.textContent=`${Math.ceil(player.hp)} / ${player.maxHp}`;
+  ui.xpBar.style.width=`${player.xp/player.xpNeed*100}%`; ui.xpText.textContent=`${player.xp} / ${player.xpNeed}`;
+  ui.level.textContent=player.lv; ui.kills.textContent=killCount; ui.time.textContent=`${scoreTime.toFixed(1)}s`;
 }
+function loop(ts){ const dt=Math.min(0.033,(ts-last)/1000||0); last=ts; update(dt); render(); uiSync(); requestAnimationFrame(loop); }
 
-window.addEventListener('keydown', (e) => { keys[e.code] = true; });
-window.addEventListener('keyup', (e) => { keys[e.code] = false; });
+addEventListener('keydown',e=>{ const k=e.key.toLowerCase(); keys.add(k); if(k===' ') autoAttack(); if(k==='p'){paused=!paused;} });
+addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
+document.getElementById('pause-btn').onclick=()=>paused=!paused;
+document.getElementById('start-btn').onclick=()=>{startScreen.classList.remove('active'); running=true;};
+document.getElementById('restart-btn').onclick=()=>location.reload();
+document.getElementById('attack-btn').ontouchstart=()=>autoAttack();
 
-function updateJoystick(clientX, clientY) {
-  const rect = joystickBase.getBoundingClientRect();
-  const cx = rect.left + rect.width / 2;
-  const cy = rect.top + rect.height / 2;
-  const dx = clientX - cx;
-  const dy = clientY - cy;
-  const maxR = rect.width * 0.35;
-  const len = Math.hypot(dx, dy);
-  const clamp = len > maxR ? maxR / len : 1;
+const zone=document.getElementById('joystick-zone'), knob=document.getElementById('joystick-knob');
+let touchId=null;
+zone.addEventListener('touchstart',e=>{touchId=e.changedTouches[0].identifier;});
+zone.addEventListener('touchmove',e=>{ for (const t of e.changedTouches) if(t.identifier===touchId){ const r=zone.getBoundingClientRect(); let x=t.clientX-(r.left+r.width/2), y=t.clientY-(r.top+r.height/2); const m=Math.hypot(x,y), lim=38; if(m>lim){x=x/m*lim;y=y/m*lim;} knob.style.left=`${31+x}px`; knob.style.top=`${31+y}px`; keys.delete('a');keys.delete('d');keys.delete('w');keys.delete('s'); if(x>8)keys.add('d'); if(x<-8)keys.add('a'); if(y>8)keys.add('s'); if(y<-8)keys.add('w'); }});
+zone.addEventListener('touchend',()=>{touchId=null;knob.style.left='31px';knob.style.top='31px';['a','s','d','w'].forEach(k=>keys.delete(k));});
 
-  const px = dx * clamp;
-  const py = dy * clamp;
-
-  joystickKnob.style.transform = `translate(${px}px, ${py}px)`;
-  touchInput.x = px / maxR;
-  touchInput.y = py / maxR;
-}
-
-joystickBase.addEventListener('pointerdown', (e) => {
-  joystickBase.setPointerCapture(e.pointerId);
-  updateJoystick(e.clientX, e.clientY);
-});
-joystickBase.addEventListener('pointermove', (e) => {
-  if (e.pressure === 0) return;
-  updateJoystick(e.clientX, e.clientY);
-});
-joystickBase.addEventListener('pointerup', () => {
-  joystickKnob.style.transform = 'translate(0, 0)';
-  touchInput.x = 0;
-  touchInput.y = 0;
-});
-
-startBtn.addEventListener('click', startGame);
-pauseBtn.addEventListener('click', pauseGame);
-restartBtn.addEventListener('click', () => {
-  gameState = 'ready';
-  resetGame();
-  showFlash('🔄 已重置');
-});
-
-resetGame();
-updateHUD();
 requestAnimationFrame(loop);
